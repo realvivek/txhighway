@@ -1,0 +1,72 @@
+name: render-bootstrap
+
+# One-shot: creates the Render static site for this repo (if it doesn't exist)
+# and waits for the deploy to go live. Requires the RENDER_API_KEY repo secret.
+# Render auto-deploys every push to main after the service exists.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: "!contains(github.event.head_commit.message || '', '[render-url]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or find Render static site, wait for live
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          OWNER_ID: tea-d95ciprtqb8s73emcicg
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "RENDER_API_KEY secret not set yet — skipping (add it in repo Settings > Secrets > Actions)"
+            exit 0
+          fi
+          AUTH="Authorization: Bearer $RENDER_API_KEY"
+          SID=$(curl -sf -H "$AUTH" "https://api.render.com/v1/services?name=txhighway&limit=20" \
+            | jq -r '.[0].service.id // empty')
+          if [ -z "$SID" ]; then
+            echo "creating service..."
+            CREATE=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+              -d "{\"type\":\"static_site\",\"name\":\"txhighway\",\"ownerId\":\"$OWNER_ID\",\"repo\":\"https://github.com/realvivek/txhighway\",\"branch\":\"main\",\"autoDeploy\":\"yes\",\"serviceDetails\":{\"publishPath\":\".\",\"buildCommand\":\"\"}}" \
+              https://api.render.com/v1/services)
+            SID=$(echo "$CREATE" | jq -r '.service.id // empty')
+            if [ -z "$SID" ]; then
+              echo "RESULT=CREATE_FAILED"
+              echo "$CREATE" | jq -r 'del(.service)' || echo "$CREATE"
+              exit 1
+            fi
+          fi
+          echo "SERVICE_ID=$SID"
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -H "$AUTH" "https://api.render.com/v1/services/$SID/deploys?limit=1" \
+              | jq -r '.[0].deploy.status // "none"')
+            echo "deploy status: $STATUS"
+            case "$STATUS" in
+              live) break ;;
+              build_failed|update_failed|canceled|deactivated) echo "RESULT=DEPLOY_FAILED"; exit 1 ;;
+            esac
+            sleep 15
+          done
+          URL=$(curl -s -H "$AUTH" "https://api.render.com/v1/services/$SID" \
+            | jq -r '.serviceDetails.url')
+          echo "LIVE_URL=$URL"
+          echo "SITE_URL=$URL" >> "$GITHUB_ENV"
+          echo "RESULT=OK"
+      - name: Record live URL in repo
+        if: env.SITE_URL != ''
+        run: |
+          echo "$SITE_URL" > .render-url
+          if ! git diff --quiet -- .render-url 2>/dev/null || [ ! -f .render-url ] || ! git ls-files --error-unmatch .render-url >/dev/null 2>&1; then
+            git config user.name realvivek
+            git config user.email realvivek@users.noreply.github.com
+            git add .render-url
+            git commit -m "chore: record live render url [render-url]" || exit 0
+            git push
+          fi

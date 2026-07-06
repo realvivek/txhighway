@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TX Highway — live Bitcoin &amp; Ethereum traffic</title>
+  <meta name="description" content="Every vehicle is a real transaction happening right now. A live visualization of the Bitcoin mempool and Ethereum pending pool as two cartoon highways." />
+  <meta property="og:title" content="TX Highway" />
+  <meta property="og:description" content="Live Bitcoin & Ethereum transactions as cartoon highway traffic. Real mempool data, no simulation." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://txhighway.onrender.com/assets/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f9435'/%3E%3Crect x='2' y='11' width='28' height='10' fill='%23908d86'/%3E%3Crect x='4' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Crect x='14' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Crect x='24' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Ccircle cx='11' cy='13.6' r='2.2' fill='%23f7931a'/%3E%3Ccircle cx='21' cy='18.6' r='2.2' fill='%235b76f7'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <header class="hud" id="hud">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="10" width="30" height="12" rx="2" fill="#908d86"/>
+        <rect x="3" y="15.2" width="7" height="1.6" fill="#fff"/>
+        <rect x="14" y="15.2" width="7" height="1.6" fill="#fff"/>
+        <rect x="25" y="15.2" width="6" height="1.6" fill="#fff"/>
+        <circle cx="10" cy="13" r="2.6" fill="#f7931a"/>
+        <circle cx="22" cy="19" r="2.6" fill="#5b76f7"/>
+      </svg>
+      <div class="brand-text">
+        <h1>TX HIGHWAY</h1>
+        <span class="brand-sub">every vehicle is a real transaction</span>
+      </div>
+      <span class="brand-short">TXH</span>
+      <span class="live-tag" id="live-tag">LIVE</span>
+    </div>
+
+    <div class="prices">
+      <div class="price-tile">
+        <span class="price-sym btc-ink">BTC</span>
+        <span class="price-val mono" id="price-btc-val">—</span>
+      </div>
+      <div class="price-tile">
+        <span class="price-sym eth-ink">ETH</span>
+        <span class="price-val mono" id="price-eth-val">—</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-pause" class="ctl" aria-label="pause">⏸</button>
+      <div class="speed-wrap" title="playback speed">
+        <input type="range" id="speed-slider" min="0.25" max="3" step="0.25" value="1" aria-label="playback speed" />
+        <span id="speed-val" class="mono">1×</span>
+      </div>
+      <button id="btn-rewind" class="ctl ctl-wide" aria-label="rewind to a past moment">rewind</button>
+      <a class="ctl ctl-wide ctl-link" href="3d.html" aria-label="try the 3D beta">3D β</a>
+      <button id="btn-sound" class="ctl" aria-label="toggle sound">🔇</button>
+      <button id="btn-share" class="ctl" aria-label="share a snapshot">📸</button>
+      <button id="btn-about" class="ctl" aria-label="about">?</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="road" aria-label="live transaction highway: two roads of vehicles, one per chain"></canvas>
+
+    <section class="shoulder shoulder-btc" aria-label="Bitcoin stats">
+      <div class="chain-line">
+        <h2 class="btc-ink">BITCOIN</h2>
+        <span class="status-wrap"><span id="btc-status" class="status-dot"></span><span id="btc-status-text" class="status-text">CONNECTING</span></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><span class="tile-k">block</span><span class="tile-v mono" id="btc-height">—</span></div>
+        <div class="tile tile-last"><span class="tile-k">last block</span><span class="tile-v mono" id="btc-last">—</span></div>
+        <div class="tile"><span class="tile-k">fastest fee</span><span class="tile-v mono" id="btc-fee">—</span></div>
+        <div class="tile"><span class="tile-k">mempool</span><span class="tile-v mono" id="btc-load">—</span></div>
+        <div class="tile tile-session"><span class="tile-k">session</span><span class="tile-v mono"><span id="btc-txs">0</span> tx · <span id="btc-vol">$0</span></span></div>
+        <div class="tile"><span class="tile-k">24h network</span><span class="tile-v mono" id="btc-daily">—</span></div>
+        <div class="tile tile-wide"><span class="tile-k">tx per second · last 60s</span>
+          <div class="spark-row"><canvas id="btc-spark" height="26" aria-hidden="true"></canvas><span class="tile-v mono" id="btc-rate">—</span></div>
+        </div>
+      </div>
+      <div class="board-ticker"><span class="ticker-text" id="btc-ticker">TX HIGHWAY — EVERY VEHICLE IS REAL</span></div>
+    </section>
+
+    <section class="shoulder shoulder-eth" aria-label="Ethereum stats">
+      <div class="chain-line">
+        <h2 class="eth-ink">ETHEREUM</h2>
+        <span class="status-wrap"><span id="eth-status" class="status-dot"></span><span id="eth-status-text" class="status-text">CONNECTING</span></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><span class="tile-k">block</span><span class="tile-v mono" id="eth-height">—</span></div>
+        <div class="tile tile-last"><span class="tile-k">last block</span><span class="tile-v mono" id="eth-last">—</span></div>
+        <div class="tile"><span class="tile-k">base fee</span><span class="tile-v mono" id="eth-fee">—</span></div>
+        <div class="tile"><span class="tile-k">traffic</span><span class="tile-v mono" id="eth-load">—</span></div>
+        <div class="tile tile-session"><span class="tile-k">session</span><span class="tile-v mono"><span id="eth-txs">0</span> tx · <span id="eth-vol">$0</span></span></div>
+        <div class="tile"><span class="tile-k">24h network</span><span class="tile-v mono" id="eth-daily">—</span></div>
+        <div class="tile tile-wide"><span class="tile-k">tx per second · last 60s</span>
+          <div class="spark-row"><canvas id="eth-spark" height="26" aria-hidden="true"></canvas><span class="tile-v mono" id="eth-rate">—</span></div>
+        </div>
+      </div>
+      <div class="board-ticker"><span class="ticker-text" id="eth-ticker">TX HIGHWAY — EVERY VEHICLE IS REAL</span></div>
+    </section>
+
+    <div class="chips chips-btc" id="chips-btc" aria-live="polite"></div>
+    <div class="chips chips-eth" id="chips-eth" aria-live="polite"></div>
+
+    <div id="tx-card" class="tx-card" hidden></div>
+
+    <aside id="about-modal" class="panel about-panel" hidden>
+      <button class="card-x" id="about-close" aria-label="close">×</button>
+      <h3>about tx highway</h3>
+      <p>Both roads show <strong>real transactions, live</strong> — nothing is simulated
+      or replayed. Bitcoin vehicles enter the moment a transaction hits the public
+      mempool; Ethereum vehicles enter as pending transactions are picked up from the
+      network, enriched with their true value and gas price. When a block is mined, the
+      gate at the end of the road flashes.</p>
+      <p>To keep the road readable at 30+ tx/s, small transactions <strong>carpool</strong>:
+      one van with a ×12 badge is twelve real transactions. The pooling threshold starts
+      at $1K and <strong>rises automatically in heavy traffic</strong> ($10K, then $100K),
+      easing back when the road clears — the rate board below always shows the live tier.
+      The "tx per second" sparkline in each panel shows the true arrival rate.</p>
+      <p><strong>Lanes are the fee market</strong>: overpaying transactions take the top
+      express lanes and drive faster, low-fee ones crawl along the bottom, everyone
+      else fills the middle.</p>
+      <p class="panel-note">bigger vehicle = more value — the rate board under the highway is
+      the scale. the golden ring marks a $1M+ whale rig, overpaying transactions drive
+      faster, the orange-striped road carries Bitcoin, blue carries Ethereum.</p>
+      <p>The LED ticker on each gantry rotates through fee trend vs an hour ago,
+      congestion, and the network's 24h transaction total — and on Ethereum, how fast
+      the <strong>Base L2 side road</strong> is moving compared to the L1 highway
+      (L2 transactions are counted, not drawn, so the road stays honest to L1).
+      A $1M+ whale entering flashes the board.</p>
+      <h4>data sources (all free &amp; keyless)</h4>
+      <ul>
+        <li>blockchain.com WebSocket — live unconfirmed BTC transactions</li>
+        <li>mempool.space WebSocket — BTC blocks, mempool, fees</li>
+        <li>PublicNode / dRPC WebSocket — ETH pending txs &amp; new heads</li>
+        <li>Base via PublicNode WebSocket — L2 side-road throughput</li>
+        <li>blockchain.com charts — 24h BTC tx total (ETH total is estimated from sampled blocks)</li>
+        <li>Coinbase spot API — USD prices</li>
+      </ul>
+      <p class="panel-note">connections drop &amp; reconnect automatically. shortcuts:
+      <span class="mono">space</span> pause · <span class="mono">esc</span> close</p>
+    </aside>
+
+    <div id="replay-banner" class="replay-banner" hidden></div>
+
+    <aside id="rewind-panel" class="panel rewind-panel" hidden>
+      <h3>rewind</h3>
+      <p>replay the actual blocks mined at a past moment — real transactions,
+      vehicles sized at that day&rsquo;s prices.</p>
+      <input type="datetime-local" id="rewind-input" class="rewind-input" aria-label="date and time to replay" />
+      <button id="rewind-go" class="rewind-go">replay that moment</button>
+    </aside>
+
+    <div id="hint-toast" class="hint-toast" hidden>
+      every vehicle is a real transaction happening right now — click one
+    </div>
+
+    <noscript>
+      <div class="noscript-msg">
+        TX Highway needs JavaScript — it renders live blockchain traffic over WebSockets.
+      </div>
+    </noscript>
+  </main>
+
+  <footer class="legend-bar" aria-label="vehicle classes by USD value moved">
+    <div class="legend-track" id="legend-rows"></div>
+  </footer>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/util.js"></script>
+  <script src="assets/js/feed-prices.js"></script>
+  <script src="assets/js/feed-btc.js"></script>
+  <script src="assets/js/feed-eth.js"></script>
+  <script src="assets/js/vehicles-classic.js"></script>
+  <script src="assets/js/vehicles.js"></script>
+  <script src="assets/js/highway.js"></script>
+  <script src="assets/js/hud.js"></script>
+  <script src="assets/js/sound.js"></script>
+  <script src="assets/js/telemetry.js"></script>
+  <script src="assets/js/historical.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

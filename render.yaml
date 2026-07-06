@@ -1,0 +1,11 @@
+services:
+  - type: web
+    runtime: static
+    name: txhighway
+    buildCommand: ""
+    staticPublishPath: .
+    autoDeploy: true
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TX Highway 3D — live Bitcoin &amp; Ethereum traffic</title>
+  <meta name="description" content="3D prototype: live Bitcoin & Ethereum transactions as low-poly highway traffic." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f9435'/%3E%3Crect x='2' y='11' width='28' height='10' fill='%23908d86'/%3E%3Crect x='4' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Crect x='14' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Crect x='24' y='15.4' width='6' height='1.4' fill='%23fff'/%3E%3Ccircle cx='11' cy='13.6' r='2.2' fill='%23f7931a'/%3E%3Ccircle cx='21' cy='18.6' r='2.2' fill='%235b76f7'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* 3D prototype page — self-contained styles, LED-board flavor from the 2D HUD */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { background: #7fb8e0; overflow: hidden; font-family: "Fredoka", system-ui, sans-serif; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    #gl { position: fixed; inset: 0; display: block; }
+    .bar {
+      position: fixed; inset: 0 0 auto 0; height: 52px; z-index: 10;
+      display: flex; align-items: center; gap: 10px; padding: 0 12px;
+      background: rgba(24, 27, 30, .88); border-bottom: 3px solid #43484d;
+      backdrop-filter: blur(4px);
+    }
+    .bar h1 { font-size: .95rem; letter-spacing: .08em; color: #ffc652; text-shadow: 0 0 8px rgba(255,160,20,.5); }
+    .bar h1 .beta { font-size: .55rem; color: #9cc8ff; vertical-align: super; letter-spacing: .12em; }
+    .back {
+      color: #dfe6ec; text-decoration: none; font-size: .72rem; font-weight: 600;
+      border: 2px solid #4a5057; border-radius: 8px; padding: 5px 10px; background: #23262a;
+    }
+    .back:hover { border-color: #6a7178; }
+    .prices { margin-left: auto; display: flex; gap: 8px; }
+    .pt { display: flex; gap: 6px; align-items: baseline; background: #0d0f11; border: 1.5px solid #383e45; border-radius: 8px; padding: 5px 9px; }
+    .pt b { font-size: .6rem; letter-spacing: .06em; }
+    .pt .v { font-size: .72rem; font-weight: 600; color: #dfe6ec; }
+    .pt-btc b { color: #ffc652; } .pt-eth b { color: #9cc8ff; }
+    .ctl3 { min-width: 36px; height: 34px; border: 2px solid #4a5057; border-radius: 8px; background: #23262a; color: #dfe6ec; font-size: .8rem; cursor: pointer; }
+    .ctl3.mode { font-family: "IBM Plex Mono", monospace; font-size: .62rem; font-weight: 600; letter-spacing: .08em; padding: 0 10px; color: #46e07c; }
+    .ctl3.mode.demo { color: #ffb52e; }
+    .sim-tag {
+      position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); z-index: 10;
+      background: rgba(40, 28, 4, .85); border: 1.5px solid #ffb52e; color: #ffce6a;
+      border-radius: 999px; padding: 5px 13px; font-size: .58rem; letter-spacing: .08em;
+      font-family: "IBM Plex Mono", monospace;
+    }
+    .sim-tag[hidden] { display: none; }
+    .chips3 { position: fixed; top: 60px; left: 10px; z-index: 10; display: flex; flex-direction: column; gap: 6px; }
+    .chip3 {
+      display: flex; gap: 8px; align-items: baseline; padding: 5px 10px;
+      background: rgba(13, 15, 17, .82); border: 1.5px solid #383e45; border-radius: 8px;
+    }
+    .chip3 b { font-size: .58rem; letter-spacing: .1em; }
+    .chip3 .r { font-size: .62rem; color: #cfd6dc; }
+    .c-btc b { color: #ffc652; } .c-eth b { color: #9cc8ff; }
+    .toast3 {
+      position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 20;
+      background: rgba(13,15,17,.9); border: 2px solid #ffd93d; color: #ffd93d; border-radius: 10px;
+      padding: 8px 16px; font-size: .8rem; letter-spacing: .08em;
+      text-shadow: 0 0 10px rgba(255,200,40,.8); transition: opacity .5s;
+    }
+    .toast3.t-btc { border-color: #ffb52e; color: #ffce6a; text-shadow: 0 0 10px rgba(255,170,30,.8); }
+    .toast3.t-eth { border-color: #7fa8ff; color: #9cc8ff; text-shadow: 0 0 10px rgba(110,150,255,.8); }
+    .toast3[hidden] { display: none; }
+    /* cinematic vignette over the whole scene */
+    .vig {
+      position: fixed; inset: 0; z-index: 4; pointer-events: none;
+      background: radial-gradient(ellipse at 50% 40%, transparent 52%, rgba(2, 4, 12, .58) 100%);
+    }
+    .card3 {
+      position: fixed; z-index: 30; width: 240px; background: rgba(18,21,24,.95);
+      border: 2px solid #4a5057; border-radius: 10px; padding: 10px 12px; color: #dfe6ec;
+    }
+    .card3[hidden] { display: none; }
+    .card3 .k { font-size: .56rem; letter-spacing: .1em; color: #8b949c; text-transform: uppercase; }
+    .card3 .row { display: flex; justify-content: space-between; font-size: .68rem; padding: 2px 0; }
+    .card3 a { color: #9cc8ff; font-size: .64rem; }
+    .hint3 {
+      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+      background: rgba(13,15,17,.8); border: 1.5px solid #383e45; color: #aeb7bf;
+      border-radius: 999px; padding: 7px 14px; font-size: .64rem; white-space: nowrap;
+    }
+    @media (max-width: 600px) {
+      .bar h1 { font-size: .78rem; }
+      .pt .v { font-size: .6rem; }
+      .hint3 { font-size: .54rem; max-width: 92vw; white-space: normal; text-align: center; }
+      .toast3 { top: 122px; width: max-content; max-width: 90vw; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="vig" aria-hidden="true"></div>
+
+  <header class="bar">
+    <a class="back" href="index.html">← classic</a>
+    <h1>TX HIGHWAY <span class="beta">3D BETA</span></h1>
+    <div class="prices">
+      <span class="pt pt-btc"><b>BTC</b><span class="v mono" id="p3-btc">—</span></span>
+      <span class="pt pt-eth"><b>ETH</b><span class="v mono" id="p3-eth">—</span></span>
+    </div>
+    <button class="ctl3 mode" id="btn3-mode" aria-label="toggle live or demo data">LIVE</button>
+    <button class="ctl3" id="btn3-share" aria-label="share a snapshot">📸</button>
+    <button class="ctl3" id="btn3-sound" aria-label="toggle sound">🔇</button>
+  </header>
+
+  <div class="sim-tag" id="sim-tag" hidden>SIMULATED DATA — toggle LIVE for the real mempool</div>
+
+  <div class="chips3">
+    <div class="chip3 c-btc"><b>BITCOIN</b><span class="r mono" id="r3-btc">—</span></div>
+    <div class="chip3 c-eth"><b>ETHEREUM</b><span class="r mono" id="r3-eth">—</span></div>
+  </div>
+
+  <div class="toast3" id="toast3" hidden></div>
+  <div class="card3" id="card3" hidden></div>
+  <div class="hint3">every vehicle is a real transaction — click one · left road Bitcoin, right road Ethereum</div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/util.js"></script>
+  <script src="assets/js/feed-prices.js"></script>
+  <script src="assets/js/feed-btc.js"></script>
+  <script src="assets/js/feed-eth.js"></script>
+  <script src="assets/js/vehicles.js"></script>
+  <script src="assets/js/sound.js"></script>
+  <script type="importmap">
+    { "imports": {
+      "three": "./assets/vendor/three.module.min.js",
+      "three/addons/": "./assets/vendor/addons/"
+    } }
+  </script>
+  <script type="module" src="assets/js/highway3d.js"></script>
+</body>
+</html>
