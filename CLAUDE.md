@@ -50,8 +50,8 @@
 - Use **Conventional Commits**: `type(scope): summary`
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `build`, `ci`
 - Example: `feat(engine): add whale glow pulse`
-- **IMPORTANT: Never mention Claude, AI, or assistant tooling** in commit messages,
-  co-author trailers, code comments, PRs, or docs. No session links. Ever.
+- No co-author trailers, tool attributions, or session links in commit messages,
+  code comments, PRs, or docs.
 
 ## Secrets — Never Commit
 - **IMPORTANT: Never commit API keys, tokens, or credentials.** (This project needs
